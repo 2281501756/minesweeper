@@ -9,6 +9,7 @@ import { onMounted, ref } from 'vue'
 import gameVue from './components/game.vue'
 const root = ref<HTMLDivElement>()
 onMounted(() => {
+
   let dom = root.value?.parentElement
   if (dom) {
     dom.style.backgroundColor = '#1f1f1f'

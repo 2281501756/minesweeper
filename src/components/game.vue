@@ -1,6 +1,7 @@
 <script lang="ts" setup>
-import { onMounted, reactive, ref, vModelRadio } from 'vue'
+import { onMounted, ref } from 'vue'
 import type { IBlockState } from './type'
+import { createMessage } from '../ui/message/index'
 let HEIGHT = 10
 let WIDTH = 10
 let COUNT = 10
@@ -23,6 +24,7 @@ let blockState = ref(
     )
   )
 )
+const game = ref<HTMLDivElement>()
 const placeMines = (x: number, y: number) => {
   for (let i = 0; i < COUNT; ) {
     let x1 = (Math.random() * WIDTH) | 0
@@ -43,6 +45,16 @@ const offset: [number, number][] = [
   [1, 0],
   [1, 1],
 ]
+const getOffsetList = (y: number, x: number): [number, number][] => {
+  let res: [number, number][] = []
+  offset.forEach(([dy, dx]) => {
+    let tx = x + dx,
+      ty = y + dy
+    if (tx < 0 || tx >= WIDTH || ty < 0 || ty >= HEIGHT) return
+    res.push([ty, tx])
+  })
+  return res
+}
 const getAjacentMinesNumber = () => {
   blockState.value.forEach((row, y) => {
     row.forEach((block, x) => {
@@ -62,15 +74,11 @@ const getAjacentMinesNumber = () => {
 }
 const clickZone = (y: number, x: number) => {
   blockState.value[y][x].revealed = true
-  for (const [y1, x1] of offset) {
-    let tx = x1 + x,
-      ty = y1 + y
-    if (tx < 0 || ty < 0 || tx > WIDTH - 1 || ty > HEIGHT - 1) continue
-
+  getOffsetList(y, x).forEach(([ty, tx]) => {
     if (blockState.value[ty][tx].adjacentMines === 0 && !blockState.value[ty][tx].revealed)
       clickZone(ty, tx)
     blockState.value[ty][tx].revealed = true
-  }
+  })
 }
 const checkWinning = () => {
   let list = blockState.value.flat()
@@ -82,9 +90,7 @@ const checkWinning = () => {
   ) {
     clearTime()
     GAME_IS_OVER.value = true
-    setTimeout(() => {
-      alert('winning')
-    }, 200)
+    if (game.value) createMessage(game.value, { type: 'winning' })
   }
 }
 const addFlag = (x: number, y: number) => {
@@ -99,6 +105,49 @@ const addFlag = (x: number, y: number) => {
   }
   checkWinning()
 }
+const handerDoubleBlock = (y: number, x: number) => {
+  if (
+    !blockState.value[y][x].revealed ||
+    blockState.value[y][x].flagged ||
+    blockState.value[y][x].mine ||
+    blockState.value[y][x].adjacentMines === 0
+  )
+    return
+  let mineFlagNumber = 0 // 正确标记炸弹的个数
+  let allFlagNumber = 0 // 标记的个数
+  let noRevealedNumber = 0 // 没有翻开的个数
+  getOffsetList(y, x).forEach(([ty, tx]) => {
+    if (blockState.value[ty][tx].flagged) allFlagNumber++
+    if (!blockState.value[ty][tx].revealed) noRevealedNumber++
+    if (blockState.value[ty][tx].flagged && blockState.value[ty][tx].mine) mineFlagNumber++
+  })
+
+  if (noRevealedNumber === blockState.value[y][x].adjacentMines) {
+    // 自动标记
+    getOffsetList(y, x).forEach(([ty, tx]) => {
+      if (!blockState.value[ty][tx].revealed && !blockState.value[ty][tx].flagged) {
+        blockState.value[ty][tx].flagged = true
+        lastMines.value--
+      }
+    })
+  } else if (
+    mineFlagNumber === blockState.value[y][x].adjacentMines &&
+    mineFlagNumber === allFlagNumber
+  ) {
+    // 正确式展开
+    getOffsetList(y, x).forEach(([ty, tx]) => {
+      if (!blockState.value[ty][tx].mine && !blockState.value[ty][tx].revealed)
+        blockState.value[ty][tx].revealed = true
+    })
+  } else if (allFlagNumber === blockState.value[y][x].adjacentMines) {
+    getOffsetList(y, x).forEach(([ty, tx]) => {
+      if (!blockState.value[ty][tx].mine && !blockState.value[ty][tx].revealed)
+        blockState.value[ty][tx].revealed = true
+    })
+    gameover()
+  }
+  checkWinning()
+}
 const gameover = () => {
   clearTime()
   GAME_IS_OVER.value = true
@@ -107,15 +156,14 @@ const gameover = () => {
       if (block.mine) block.revealed = true
     }
   }
-  setTimeout(() => {
-    alert('gameover')
-  }, 100)
+  if (game.value) createMessage(game.value, { type: 'lose' })
 }
 const handerBlock = (x: number, y: number) => {
   if (GAME_IS_OVER.value) return
   if (FIRST_CLICK) {
     placeMines(x, y)
     getAjacentMinesNumber()
+    setTime()
     FIRST_CLICK = false
   }
   blockState.value[y][x].revealed = true
@@ -130,7 +178,6 @@ const handerBlock = (x: number, y: number) => {
 function newGame() {
   clearTime()
   time.value = 0
-  setTime()
   lastMines.value = COUNT
   GAME_IS_OVER.value = false
   FIRST_CLICK = true
@@ -148,6 +195,8 @@ function newGame() {
     )
   )
 }
+
+// 模式模块
 enum mode {
   esay,
   med,
@@ -159,8 +208,8 @@ function changeMode(T: mode) {
     WIDTH = 10
     COUNT = 10
   } else if (T === mode.med) {
-    HEIGHT = 15
-    WIDTH = 15
+    HEIGHT = 14
+    WIDTH = 20
     COUNT = 40
   } else if (T === mode.diff) {
     HEIGHT = 16
@@ -169,6 +218,8 @@ function changeMode(T: mode) {
   }
   newGame()
 }
+
+// 时间模块
 let TIMEID = 0
 function setTime() {
   TIMEID = setInterval(() => {
@@ -178,13 +229,11 @@ function setTime() {
 function clearTime() {
   clearInterval(TIMEID)
 }
-onMounted(() => {
-  setTime()
-})
+onMounted(() => {})
 </script>
 
 <template>
-  <div class="game">
+  <div ref="game" class="game">
     <div class="game-header">
       <div>Minesweeper</div>
       <div class="mode">
@@ -217,6 +266,7 @@ onMounted(() => {
           key="x"
           @contextmenu.prevent="addFlag(x, y)"
           @click="handerBlock(x, y)"
+          @dblclick="handerDoubleBlock(y, x)"
         >
           <template v-if="block.revealed">
             <template v-if="block.mine">
@@ -240,6 +290,7 @@ button:after {
 }
 .game {
   margin: 20px auto;
+  position: relative;
   &-header {
     text-align: center;
   }
