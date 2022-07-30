@@ -85,10 +85,14 @@ const checkWinning = () => {
 
   if (
     list.every((i) => {
-      return i.revealed || (i.flagged && i.mine)
+      return i.revealed || i.mine
     })
   ) {
+    list.forEach((i) => {
+      if (i.mine) i.flagged = true
+    })
     clearTime()
+    lastMines.value = 0
     GAME_IS_OVER.value = true
     if (game.value) createMessage(game.value, { type: 'winning' })
   }
@@ -241,6 +245,7 @@ onMounted(() => {})
         <button @click="changeMode(mode.esay)">简单</button>
         <button @click="changeMode(mode.med)">一般</button>
         <button @click="changeMode(mode.diff)">困难</button>
+        <!-- <button @click="changeMode(mode.diff)">排行榜</button> -->
       </div>
       <div class="game-data">
         <div>
