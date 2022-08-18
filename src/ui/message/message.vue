@@ -4,10 +4,10 @@ const props = defineProps<{
   type: string
 }>()
 
-const root = ref()
+const main = ref()
 const remove = () => {
-  if (root.value) {
-    root.value.parentElement?.removeChild(root.value)
+  if (main.value) {
+    main.value.parentElement?.removeChild(main.value)
   }
 }
 onMounted(() => {
@@ -18,14 +18,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div ref="root" class="root">
+  <div ref="main" class="main">
     <div class="lose" v-if="props.type === 'lose'">你输了</div>
     <div class="winning" v-if="props.type === 'winning'">你赢了</div>
   </div>
 </template>
 
 <style scoped>
-.root {
+.main {
   height: 40px;
   width: 130px;
   position: absolute;
@@ -33,6 +33,7 @@ onMounted(() => {
   left: 50%;
   transform: translate(-50%, -50%);
   animation: close 2s ease-in-out;
+  color: white;
 }
 .lose {
   width: 100%;

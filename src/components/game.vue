@@ -1,13 +1,16 @@
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
+import confetti from 'canvas-confetti'
+import { ref, onUnmounted, onMounted } from 'vue'
 import type { IBlockState } from './type'
 import { createMessage } from '../ui/message/index'
+import axios from 'axios'
+import { useRouter } from '../router'
 let HEIGHT = 10
 let WIDTH = 10
 let COUNT = 10
 let FIRST_CLICK = true
 let GAME_IS_OVER = ref(false)
-let time = ref(0)
+let time = ref('0')
 let lastMines = ref(10)
 let blockState = ref(
   Array.from({ length: HEIGHT }, (_, y) =>
@@ -94,7 +97,23 @@ const checkWinning = () => {
     clearTime()
     lastMines.value = 0
     GAME_IS_OVER.value = true
-    if (game.value) createMessage(game.value, { type: 'winning' })
+    console.log('赢了' + time.value)
+    if (game.value)
+      setTimeout(() => {
+        createMessage(game.value as any, { type: 'winning' })
+      }, 1000)
+    flower()
+    axios({
+      url: 'https://app464.acapp.acwing.com.cn:20443/mineSweeper/create',
+      method: 'post',
+      data: {
+        user_name: window.user.username,
+        photo: window.user.photo,
+        time: parseFloat(time.value),
+        openid: window.user.openid,
+        type: game_mode === mode.easy ? 'easy' : game_mode === mode.med ? 'medium' : 'difficulty',
+      },
+    })
   }
 }
 const addFlag = (x: number, y: number) => {
@@ -181,7 +200,7 @@ const handerBlock = (x: number, y: number) => {
 }
 function newGame() {
   clearTime()
-  time.value = 0
+  time.value = '0'
   lastMines.value = COUNT
   GAME_IS_OVER.value = false
   FIRST_CLICK = true
@@ -202,23 +221,27 @@ function newGame() {
 
 // 模式模块
 enum mode {
-  esay,
+  easy,
   med,
   diff,
 }
+let game_mode = mode.easy
 function changeMode(T: mode) {
-  if (T === mode.esay) {
+  if (T === mode.easy) {
     HEIGHT = 10
     WIDTH = 10
     COUNT = 10
+    game_mode = mode.easy
   } else if (T === mode.med) {
     HEIGHT = 14
     WIDTH = 20
     COUNT = 40
+    game_mode = mode.med
   } else if (T === mode.diff) {
     HEIGHT = 16
     WIDTH = 30
     COUNT = 99
+    game_mode = mode.diff
   }
   newGame()
 }
@@ -227,25 +250,79 @@ function changeMode(T: mode) {
 let TIMEID = 0
 function setTime() {
   TIMEID = setInterval(() => {
-    time.value++
-  }, 1000)
+    time.value = (parseFloat(time.value) + 0.017).toFixed(3)
+  }, 17)
 }
 function clearTime() {
   clearInterval(TIMEID)
 }
-onMounted(() => {})
+
+// 撒花
+let myCanvas = document.createElement('canvas')
+let dom = document.querySelector('.root') as HTMLDivElement
+myCanvas.id = 'game-canvas'
+myCanvas.width = dom.clientWidth
+myCanvas.height = dom.clientHeight
+myCanvas.style.position = 'absolute'
+myCanvas.style.left = '0'
+myCanvas.style.top = '0'
+dom.appendChild(myCanvas)
+
+let TIMER = setInterval(() => {
+  myCanvas.width = dom.clientWidth
+  myCanvas.height = dom.clientHeight
+}, 1000)
+
+onUnmounted(() => {
+  dom.removeChild(myCanvas)
+  clearInterval(TIMER)
+})
+
+let myConfetti = confetti.create(myCanvas, { resize: true })
+
+function flower() {
+  let end = Date.now() + 1 * 1000
+  let colors = ['#bb0000', '#ffffff', '#5aa4ae']
+
+  ;(function frame() {
+    myConfetti({
+      particleCount: 3,
+      angle: 60,
+      spread: 55,
+      origin: { x: 0 },
+      colors: colors,
+    })
+    myConfetti({
+      particleCount: 3,
+      angle: 120,
+      spread: 55,
+      origin: { x: 1 },
+      colors: colors,
+    })
+
+    if (Date.now() < end) {
+      requestAnimationFrame(frame)
+    }
+  })()
+}
+
+// router
+const { router, setRouter } = useRouter()
+const handleHome = () => {
+  setRouter('home')
+}
 </script>
 
 <template>
   <div ref="game" class="game">
     <div class="game-header">
-      <div>Minesweeper</div>
+      <div style="color: #ffffff; height: 40px; line-height: 40px">Minesweeper</div>
       <div class="mode">
         <button @click="newGame()">重开</button>
-        <button @click="changeMode(mode.esay)">简单</button>
-        <button @click="changeMode(mode.med)">一般</button>
-        <button @click="changeMode(mode.diff)">困难</button>
-        <!-- <button @click="changeMode(mode.diff)">排行榜</button> -->
+        <button @click="changeMode(mode.easy)">入门</button>
+        <button @click="changeMode(mode.med)">大师</button>
+        <button @click="changeMode(mode.diff)">专家</button>
+        <button @click="handleHome()">首页</button>
       </div>
       <div class="game-data">
         <div>
@@ -294,7 +371,8 @@ button:after {
   border: none;
 }
 .game {
-  margin: 20px auto;
+  height: 100%;
+  margin: 0px auto;
   position: relative;
   &-header {
     text-align: center;
@@ -316,8 +394,8 @@ button:after {
     vertical-align: middle;
     width: 35px;
     height: 35px;
-    transform: translateX(100px);
-    filter: drop-shadow(#f1f1f1 -100px 0);
+    transform: translateX(200px);
+    filter: drop-shadow(#f1f1f1 -200px 0);
   }
 }
 
@@ -354,6 +432,7 @@ button:after {
     border: 0;
     outline: none;
     margin: 5px 10px;
+    color: #f0f0f0;
   }
   button:active {
     transform: scale(0.98);

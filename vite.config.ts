@@ -14,4 +14,19 @@ export default defineConfig({
       },
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://app464.acapp.acwing.com.cn:28001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        ws: true,
+      },
+      // '/wsq': {
+      //   target: 'http://app464.acapp.acwing.com.cn:28001',
+      //   changeOrigin: true,
+      //   rewrite: (path) => path.replace(/^\/api/, ''),
+      // },
+    },
+  },
 })
