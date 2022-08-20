@@ -266,6 +266,7 @@ myCanvas.height = dom.clientHeight
 myCanvas.style.position = 'absolute'
 myCanvas.style.left = '0'
 myCanvas.style.top = '0'
+myCanvas.style.pointerEvents = 'none'
 dom.appendChild(myCanvas)
 
 let TIMER = setInterval(() => {

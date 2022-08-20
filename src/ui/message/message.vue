@@ -29,7 +29,7 @@ onMounted(() => {
   height: 40px;
   width: 130px;
   position: absolute;
-  top: 35%;
+  top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   animation: close 2s ease-in-out;

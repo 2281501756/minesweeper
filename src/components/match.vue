@@ -1,16 +1,18 @@
 <script lang="ts" setup>
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref, onMounted } from 'vue'
 import { useRouter } from '../router'
 import { useStore } from '../store'
 const { router, setRouter } = useRouter()
-const { username, photo } = window.user
 const handerHome = () => {
   setRouter('home')
 }
 
 const store = useStore()
-store.username = username
-store.photo = photo
+onMounted(() => {
+  const { username, photo } = window.user
+  store.username = username
+  store.photo = photo
+})
 
 // 聊天
 interface IChat {
@@ -34,6 +36,107 @@ const sendChatData = () => {
   store.chat(chatData.value)
   chatData.value = ''
 }
+
+// 匹配
+const isMatch = ref(false)
+const matchTime = ref(0)
+const perpare = ref(false)
+let MATCH_TIMER = 0
+// 计算匹配时间
+const showTime = computed(() => {
+  let m: number | string = (matchTime.value / 60) | 0
+  let s: number | string = matchTime.value % 60
+  let res = ''
+  if (m < 10) res += '0' + m
+  else res += m
+  res += ':'
+  if (s < 10) res += '0' + s
+  else res += s
+  return res
+})
+const matchCallback = (data: {
+  roomid: string
+  uuid: string
+  roomSeat: number
+  enemy: { uuid: string; username: string; photo: string; roomSeat: number; prepared: boolean }
+}) => {
+  if (data.uuid !== store.ws.id) return
+  store.MatchSucceed = true
+  store.roomid = data.roomid
+  store.roomSeat = data.roomSeat
+  store.enemy = data.enemy
+
+  matchTime.value = 0
+  store.ws.socket.on('enemyLeaveRoom', enemyLeaveRoomCallback)
+  store.ws.socket.on('enemyPrepared', enemyPreparedCallback)
+  store.ws.socket.on('enemyClosePrepared', enemyClosePreparedCallback)
+  clearInterval(MATCH_TIMER)
+}
+
+const enemyLeaveRoomCallback = (data: { roomid: string; uuid: string }) => {
+  if (data.roomid !== store.roomid && data.uuid !== store.ws.id) return
+  store.MatchSucceed = false
+  store.enemy = {}
+  store.roomSeat = 1
+  store.roomid = ''
+  perpare.value = false
+  isMatch.value = false
+}
+const enemyPreparedCallback = (data: { roomid: string; uuid: string }) => {
+  if (data.roomid !== store.roomid || data.uuid !== store.enemy.uuid) return
+  store.enemy.prepared = true
+}
+const enemyClosePreparedCallback = (data: { roomid: string; uuid: string }) => {
+  if (data.roomid !== store.roomid || data.uuid !== store.enemy.uuid) return
+  store.enemy.prepared = false
+}
+
+const handleMatch = () => {
+  isMatch.value = true
+  store.match()
+  store.ws.socket.on('matchSucceed', matchCallback)
+  MATCH_TIMER = setInterval(() => {
+    matchTime.value++
+  }, 1000)
+}
+const handleStopMatch = () => {
+  isMatch.value = false
+  matchTime.value = 0
+  store.ws.socket.emit('matchClose', { uuid: store.ws.id })
+  store.ws.socket.off('matchSucceed', matchCallback)
+  clearInterval(MATCH_TIMER)
+}
+const handlePerpare = () => {
+  perpare.value = true
+  store.ws.socket.emit('playPrepared', {
+    uuid: store.ws.id,
+    roomid: store.roomid,
+    roomSeat: store.roomSeat,
+  })
+}
+const handleClosePerpare = () => {
+  perpare.value = false
+  store.ws.socket.emit('closePrepared', {
+    uuid: store.ws.id,
+    roomid: store.roomid,
+    roomSeat: store.roomSeat,
+  })
+}
+const handleRemoveRoom = () => {
+  store.ws.socket.emit('leaveRoom', {
+    uuid: store.ws.id,
+    roomid: store.roomid,
+    roomSeat: store.roomSeat,
+  })
+  store.ws.socket.off('enemyLeaveRoom', enemyLeaveRoomCallback)
+
+  store.roomid = ''
+  store.roomSeat = 1
+  store.MatchSucceed = false
+  store.enemy = {}
+  perpare.value = false
+  isMatch.value = false
+}
 </script>
 
 <template>
@@ -44,17 +147,26 @@ const sendChatData = () => {
         <img class="user-img" :src="store.photo" />
       </div>
       <div class="user-name">{{ store.username }}</div>
+      <div class="prepared-box" v-if="perpare">已准备</div>
     </div>
     <div class="card">
       <div class="user-img-box">
-        <img class="user-img" src="/user.jpg" />
+        <img v-if="!store.MatchSucceed" class="user-img" src="/user.jpg" />
+        <img v-else class="user-img" :src="store.enemy.photo" />
       </div>
-      <div class="user-name">匹配中</div>
+      <div v-if="!store.MatchSucceed" class="user-name">匹配中</div>
+      <div v-else class="user-name">{{ store.enemy.username }}</div>
+      <div class="prepared-box" v-if="store.enemy.prepared">已准备</div>
     </div>
   </div>
+  <div class="match-time" v-show="isMatch && !store.MatchSucceed">{{ showTime }}</div>
   <div class="button-box">
-    <button>匹配</button>
-    <button @click="handerHome()">返回</button>
+    <button v-if="!isMatch" @click="handleMatch()">匹配</button>
+    <button v-else-if="!store.MatchSucceed" @click="handleStopMatch()">取消</button>
+    <button v-else-if="!perpare" @click="handlePerpare()">准备</button>
+    <button v-else @click="handleClosePerpare()">取消</button>
+    <button v-if="!store.MatchSucceed" @click="handerHome()">返回</button>
+    <button v-else @click="handleRemoveRoom()">退出</button>
   </div>
   <div class="chat-box">
     <div class="chat">
@@ -64,7 +176,7 @@ const sendChatData = () => {
           style="width: 30px; height: 30px; border-radius: 50%; margin-right: 3px"
           alt="头像"
         />
-        <span style="vertical-align: super">{{ item.username + ' : ' + item.value }}</span>
+        <span style="vertical-align: middle">{{ item.username + ' : ' + item.value }}</span>
       </div>
     </div>
     <input v-model="chatData" @keyup.enter="sendChatData()" type="text" />
@@ -90,11 +202,13 @@ const sendChatData = () => {
   color: #fff;
 }
 .card {
+  position: relative;
+  overflow: hidden;
   margin-top: 100px;
   width: 18%;
   height: 55%;
   border-radius: 20px;
-  border: 5px solid #666;
+  border: 3px solid #666;
   background-color: #111;
 }
 .user-img-box {
@@ -111,7 +225,6 @@ const sendChatData = () => {
   width: 80%;
   border-radius: 50%;
   aspect-ratio: 1/1;
-  background-color: red;
   border: 2px solid #777;
 }
 .user-name {
@@ -139,6 +252,9 @@ const sendChatData = () => {
   background-color: #488f85;
   color: #fff;
   cursor: pointer;
+}
+.button-box > button:active {
+  transform: scale(0.9);
 }
 .chat-box {
   position: absolute;
@@ -170,5 +286,25 @@ const sendChatData = () => {
 .chat::-webkit-scrollbar {
   width: 5px;
   height: 5px;
+}
+.match-time {
+  position: relative;
+  bottom: 20%;
+  text-align: center;
+  font-size: 20px;
+  color: #fff;
+}
+.prepared-box {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 35px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 </style>
