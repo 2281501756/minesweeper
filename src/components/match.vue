@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, nextTick, ref, onMounted } from 'vue'
+import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from '../router'
 import { useStore } from '../store'
 const { router, setRouter } = useRouter()
@@ -22,20 +22,21 @@ interface IChat {
   value: string
 }
 const chatList = ref<IChat[]>([])
-store.ws.socket.on('chat', (data: IChat) => {
+const chatCallback = (data: IChat) => {
   chatList.value.push(data)
   if (chatList.value.length > 50) chatList.value.shift()
   nextTick(() => {
     let chat = document.querySelector('.chat') as HTMLDivElement
     chat.scrollTop = chat.scrollHeight
   })
-})
+}
 const chatData = ref('')
 const sendChatData = () => {
   if (chatData.value === '') return
   store.chat(chatData.value)
   chatData.value = ''
 }
+store.ws.socket.on('chat', chatCallback)
 
 // 匹配
 const isMatch = ref(false)
@@ -54,12 +55,7 @@ const showTime = computed(() => {
   else res += s
   return res
 })
-const matchCallback = (data: {
-  roomid: string
-  uuid: string
-  roomSeat: number
-  enemy: { uuid: string; username: string; photo: string; roomSeat: number; prepared: boolean }
-}) => {
+const matchCallback = (data: { roomid: string; uuid: string; roomSeat: number; enemy: any }) => {
   if (data.uuid !== store.ws.id) return
   store.MatchSucceed = true
   store.roomid = data.roomid
@@ -70,13 +66,23 @@ const matchCallback = (data: {
   store.ws.socket.on('enemyLeaveRoom', enemyLeaveRoomCallback)
   store.ws.socket.on('enemyPrepared', enemyPreparedCallback)
   store.ws.socket.on('enemyClosePrepared', enemyClosePreparedCallback)
+  store.ws.socket.on('gamePlay', gamePlayCallback)
   clearInterval(MATCH_TIMER)
 }
 
 const enemyLeaveRoomCallback = (data: { roomid: string; uuid: string }) => {
   if (data.roomid !== store.roomid && data.uuid !== store.ws.id) return
   store.MatchSucceed = false
-  store.enemy = {}
+  store.enemy = {
+    uuid: 'string',
+    username: 'string',
+    photo: 'string',
+    roomSeat: 1,
+    prepared: false,
+    blockState: [],
+    time: 1,
+    lastMines: 1,
+  }
   store.roomSeat = 1
   store.roomid = ''
   perpare.value = false
@@ -89,6 +95,21 @@ const enemyPreparedCallback = (data: { roomid: string; uuid: string }) => {
 const enemyClosePreparedCallback = (data: { roomid: string; uuid: string }) => {
   if (data.roomid !== store.roomid || data.uuid !== store.enemy.uuid) return
   store.enemy.prepared = false
+}
+
+const countDown = ref(5)
+let GAMEPLAYTIMER = -1
+const gamePlayCallback = (data: { roomid: string; uuid: string }) => {
+  if (data.roomid !== store.roomid) return
+  store.GameStart = true
+  if (GAMEPLAYTIMER === -1)
+    GAMEPLAYTIMER = setInterval(() => {
+      countDown.value--
+    }, 1000)
+  setTimeout(() => {
+    clearInterval(GAMEPLAYTIMER)
+    setRouter('multiGame')
+  }, 5000)
 }
 
 const handleMatch = () => {
@@ -104,6 +125,10 @@ const handleStopMatch = () => {
   matchTime.value = 0
   store.ws.socket.emit('matchClose', { uuid: store.ws.id })
   store.ws.socket.off('matchSucceed', matchCallback)
+  store.ws.socket.off('enemyLeaveRoom', enemyLeaveRoomCallback)
+  store.ws.socket.off('enemyPrepared', enemyPreparedCallback)
+  store.ws.socket.off('enemyClosePrepared', enemyClosePreparedCallback)
+  store.ws.socket.off('gamePlay', gamePlayCallback)
   clearInterval(MATCH_TIMER)
 }
 const handlePerpare = () => {
@@ -133,10 +158,28 @@ const handleRemoveRoom = () => {
   store.roomid = ''
   store.roomSeat = 1
   store.MatchSucceed = false
-  store.enemy = {}
+  store.enemy = {
+    uuid: 'string',
+    username: 'string',
+    photo: 'string',
+    roomSeat: 1,
+    prepared: false,
+    blockState: [],
+    time: 1,
+    lastMines: 1,
+  }
   perpare.value = false
   isMatch.value = false
 }
+
+onUnmounted(() => {
+  store.ws.socket.off('chat', chatCallback)
+  store.ws.socket.off('matchSucceed', matchCallback)
+  store.ws.socket.off('enemyLeaveRoom', enemyLeaveRoomCallback)
+  store.ws.socket.off('enemyPrepared', enemyPreparedCallback)
+  store.ws.socket.off('enemyClosePrepared', enemyClosePreparedCallback)
+  store.ws.socket.off('gamePlay', gamePlayCallback)
+})
 </script>
 
 <template>
@@ -160,7 +203,7 @@ const handleRemoveRoom = () => {
     </div>
   </div>
   <div class="match-time" v-show="isMatch && !store.MatchSucceed">{{ showTime }}</div>
-  <div class="button-box">
+  <div class="button-box" v-if="!store.GameStart">
     <button v-if="!isMatch" @click="handleMatch()">匹配</button>
     <button v-else-if="!store.MatchSucceed" @click="handleStopMatch()">取消</button>
     <button v-else-if="!perpare" @click="handlePerpare()">准备</button>
@@ -181,6 +224,7 @@ const handleRemoveRoom = () => {
     </div>
     <input v-model="chatData" @keyup.enter="sendChatData()" type="text" />
   </div>
+  <div class="countDown-box" v-if="store.GameStart">{{ countDown }}</div>
 </template>
 
 <style scoped>
@@ -306,5 +350,14 @@ const handleRemoveRoom = () => {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+.countDown-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 80px;
+  cursor: pointer;
 }
 </style>

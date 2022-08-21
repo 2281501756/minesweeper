@@ -1,13 +1,9 @@
 import axios from 'axios'
 
-const login = async () => {
+export const login = async () => {
   let AcWingOS = window.AcWingOS
   if (!AcWingOS) {
     let user = [
-      {
-        name: '随便玩玩',
-        photo: 'https://cdn.acwing.com/media/user/profile/photo/67937_lg_b3096b1d39.png',
-      },
       {
         name: '坂田银时',
         photo:
@@ -19,12 +15,11 @@ const login = async () => {
           'https://cdn.acwing.com/media/article/image/2022/08/20/67937_41c9333920-OIP-C-(1).jpg',
       },
       {
-        name: '喜多川',
-        photo:
-          'https://cdn.acwing.com/media/article/image/2022/08/20/67937_32dd13b420-f0d6d37915b890e2bc8c7aed9fcd54ce8d991698.jpg@942w_531h_progressive.jpg',
+        name: '阿尼亚',
+        photo: 'https://cdn.acwing.com/media/article/image/2022/08/21/67937_c92cc1a121-1.jpg',
       },
     ]
-    let u = user[Math.floor(Math.random() * 4)]
+    let u = user[Math.floor(Math.random() * 3)]
     window.user = {
       username: u.name,
       photo: u.photo,
@@ -47,4 +42,3 @@ const login = async () => {
     window.user = res.data
   })
 }
-login()

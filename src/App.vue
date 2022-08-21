@@ -4,6 +4,7 @@ import { useRouter } from './router'
 import gameVue from './components/game.vue'
 import homeVue from './components/home.vue'
 import Match from './components/match.vue'
+import multiGameVue from './components/multiGame.vue'
 const root = ref<HTMLDivElement>()
 const { router, setRouter } = useRouter()
 
@@ -20,6 +21,7 @@ onMounted(() => {
     <home-vue v-if="router === 'home'"></home-vue>
     <game-vue v-if="router === 'game'"></game-vue>
     <match v-if="router === 'match'"></match>
+    <multi-game-vue v-if="router === 'multiGame'"></multi-game-vue>
   </div>
 </template>
 

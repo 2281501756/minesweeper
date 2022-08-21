@@ -3,6 +3,10 @@ import './style.css'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 
-import './util/login'
+import { login } from './util/login'
 
-createApp(App).use(createPinia()).mount('#app')
+const a = async () => {
+  await login()
+  createApp(App).use(createPinia()).mount('#app')
+}
+a()

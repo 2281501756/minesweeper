@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { IBlockState } from '../components/type'
 import WS from '../socket'
 
 export const useStore = defineStore('main', {
@@ -7,15 +8,19 @@ export const useStore = defineStore('main', {
       ws: new WS(),
       username: '',
       photo: '',
+      GameStart: false,
       MatchSucceed: false,
       roomid: '',
       roomSeat: 1,
       enemy: {} as {
-        uuid?: string
-        username?: string
-        photo?: string
-        roomSeat?: number
-        prepared?: boolean
+        uuid: string
+        username: string
+        photo: string
+        roomSeat: number
+        prepared: boolean
+        blockState: IBlockState[][]
+        time: number
+        lastMines: number
       },
     }
   },
