@@ -31,6 +31,7 @@ export const useStore = defineStore('main', {
         username: this.username,
         photo: this.photo,
         value: v,
+        date: new Date(),
       })
     },
     match() {

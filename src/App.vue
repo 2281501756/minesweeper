@@ -5,6 +5,7 @@ import gameVue from './components/game.vue'
 import homeVue from './components/home.vue'
 import Match from './components/match.vue'
 import multiGameVue from './components/multiGame.vue'
+
 const root = ref<HTMLDivElement>()
 const { router, setRouter } = useRouter()
 

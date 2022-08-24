@@ -1,6 +1,8 @@
 import axios from 'axios'
+import { useStore } from '../store'
 
 export const login = async () => {
+  const store = useStore()
   let AcWingOS = window.AcWingOS
   if (!AcWingOS) {
     let user = [
@@ -27,6 +29,8 @@ export const login = async () => {
       refresh_token: '',
       openid: '',
     }
+    store.username = u.name
+    store.photo = u.photo
     return
   }
   let apply_code = await axios.get(
@@ -40,5 +44,7 @@ export const login = async () => {
     if (photo[1] === 'md') photo[1] = 'lg'
     res.data.photo = photo.join('_')
     window.user = res.data
+    store.username = res.data.username
+    store.photo = res.data.photo
   })
 }

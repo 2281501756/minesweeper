@@ -2,16 +2,17 @@
 import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from '../router'
 import { useStore } from '../store'
+import { login } from '../util/login'
 const { router, setRouter } = useRouter()
 const handerHome = () => {
+  handleStopMatch()
   setRouter('home')
 }
 
 const store = useStore()
+
 onMounted(() => {
-  const { username, photo } = window.user
-  store.username = username
-  store.photo = photo
+  login()
 })
 
 // 聊天
@@ -20,6 +21,7 @@ interface IChat {
   username: string
   photo: string
   value: string
+  date: Date
 }
 const chatList = ref<IChat[]>([])
 const chatCallback = (data: IChat) => {
@@ -30,13 +32,45 @@ const chatCallback = (data: IChat) => {
     chat.scrollTop = chat.scrollHeight
   })
 }
+const chatinfoCallback = ({ ChatQueue }: { ChatQueue: IChat[] }) => {
+  for (let i = 0; i < ChatQueue.length; i++) {
+    chatList.value.push(ChatQueue[i])
+  }
+}
 const chatData = ref('')
 const sendChatData = () => {
   if (chatData.value === '') return
   store.chat(chatData.value)
   chatData.value = ''
 }
-store.ws.socket.on('chat', chatCallback)
+const chatTime = (date: Date) => {
+  let res = ''
+  let T = new Date(date)
+  res += T.getHours() + ':' + T.getMinutes()
+  return res
+}
+onMounted(() => {
+  store.ws.socket.on('chat', chatCallback)
+  store.ws.socket.on('chatinfo', chatinfoCallback)
+  store.ws.socket.emit('chatinfo')
+})
+
+// 滚动事件
+const chat = ref<HTMLDivElement>()
+function onmousewheel(e: any) {
+  let dom = chat.value
+  if (e.wheelDelta > 0 && dom) {
+    dom.scrollTop -= 40
+  } else if (e.wheelDelta < 0 && dom) {
+    dom.scrollTop += 40
+  }
+}
+onMounted(() => {
+  if (chat.value) chat.value.addEventListener('mousewheel', onmousewheel, false)
+})
+onUnmounted(() => {
+  if (chat.value) chat.value.removeEventListener('mousewheel', onmousewheel)
+})
 
 // 匹配
 const isMatch = ref(false)
@@ -174,6 +208,7 @@ const handleRemoveRoom = () => {
 
 onUnmounted(() => {
   store.ws.socket.off('chat', chatCallback)
+  store.ws.socket.off('chatinfo', chatinfoCallback)
   store.ws.socket.off('matchSucceed', matchCallback)
   store.ws.socket.off('enemyLeaveRoom', enemyLeaveRoomCallback)
   store.ws.socket.off('enemyPrepared', enemyPreparedCallback)
@@ -187,9 +222,11 @@ onUnmounted(() => {
     <div class="title">匹配大厅</div>
     <div class="card">
       <div class="user-img-box">
-        <img class="user-img" :src="store.photo" />
+        <img v-if="!store.photo" class="user-img" src="/user.jpg" />
+        <img v-else class="user-img" :src="store.photo" />
       </div>
-      <div class="user-name">{{ store.username }}</div>
+      <div v-if="!store.photo" class="user-name">加载中</div>
+      <div v-else class="user-name">{{ store.username }}</div>
       <div class="prepared-box" v-if="perpare">已准备</div>
     </div>
     <div class="card">
@@ -212,14 +249,17 @@ onUnmounted(() => {
     <button v-else @click="handleRemoveRoom()">退出</button>
   </div>
   <div class="chat-box">
-    <div class="chat">
-      <div v-for="item in chatList" :key="item.username + item.value">
+    <div ref="chat" class="chat">
+      <div class="chat-item" v-for="item in chatList" :key="item.username + item.value">
         <img
           :src="item.photo"
           style="width: 30px; height: 30px; border-radius: 50%; margin-right: 3px"
           alt="头像"
         />
         <span style="vertical-align: middle">{{ item.username + ' : ' + item.value }}</span>
+        <span style="vertical-align: middle; float: right; line-height: 30px; color: #777">{{
+          chatTime(item.date)
+        }}</span>
       </div>
     </div>
     <input v-model="chatData" @keyup.enter="sendChatData()" type="text" />
@@ -294,7 +334,7 @@ onUnmounted(() => {
   font-size: 20px;
   border-radius: 25px;
   background-color: #488f85;
-  color: #fff;
+  color: #eee;
   cursor: pointer;
 }
 .button-box > button:active {
@@ -314,8 +354,14 @@ onUnmounted(() => {
 }
 .chat {
   height: calc(100% - 30px);
-  color: #fff;
+  color: #eee;
   overflow-y: scroll;
+  padding: 0 10px;
+}
+.chat-item {
+  white-space: normal;
+  word-break: break-all;
+  overflow: hidden;
 }
 
 .chat::-webkit-resizer,
